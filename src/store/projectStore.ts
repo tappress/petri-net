@@ -50,7 +50,7 @@ interface ProjectState {
   // Net mutations
   addPlace: (x: number, y: number) => string;
   addTransition: (x: number, y: number) => string;
-  addArc: (source: string, target: string) => void;
+  addArc: (source: string, target: string) => string | null;
   updatePlace: (id: string, patch: Partial<Place>) => void;
   updateTransition: (id: string, patch: Partial<Transition>) => void;
   updateArc: (id: string, patch: Partial<Arc>) => void;
@@ -190,22 +190,23 @@ export const useProjectStore = create<ProjectState>()(
 
       addArc: (source, target) => {
         const id = nanoid();
+        let created = false;
         set(state => {
           const sheet = activeSheet(state);
           if (!sheet) return;
-          // Validate: one end must be place, other must be transition
           const isSourcePlace = !!sheet.net.places[source];
           const isTargetPlace = !!sheet.net.places[target];
-          if (isSourcePlace === isTargetPlace) return; // same type, invalid
-          // Prevent duplicate
+          if (isSourcePlace === isTargetPlace) return;
           const exists = Object.values(sheet.net.arcs).some(
             a => a.source === source && a.target === target
           );
           if (exists) return;
           sheet.net.arcs[id] = { id, source, target, weight: 1, type: 'normal', cpDx: 0, cpDy: 0 };
           sheet.updatedAt = Date.now();
+          created = true;
         });
         persist(get());
+        return created ? id : null;
       },
 
       updatePlace: (id, patch) => {

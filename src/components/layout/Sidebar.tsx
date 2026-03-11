@@ -8,6 +8,16 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 
+function parseProject(text: string): Project | null {
+  try {
+    const proj = JSON.parse(text) as Project;
+    if (!proj.id || !proj.name || !proj.sheets) return null;
+    return proj;
+  } catch {
+    return null;
+  }
+}
+
 export default function Sidebar() {
   const {
     projects, activeProjectId,
@@ -23,6 +33,9 @@ export default function Sidebar() {
   const [newSheetName, setNewSheetName] = useState('');
   const [editingSheetId, setEditingSheetId] = useState<string | null>(null);
   const [editingSheetName, setEditingSheetName] = useState('');
+  const [pasteText, setPasteText] = useState('');
+  const [pasteError, setPasteError] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
 
   const handleCreateProject = () => {
     const name = newProjectName.trim() || `Project ${Object.keys(projects).length + 1}`;
@@ -30,7 +43,12 @@ export default function Sidebar() {
     setNewProjectName('');
   };
 
-  const handleExport = (project: Project) => {
+  const doImport = (proj: Project) => {
+    proj.id = nanoid();
+    importProject(proj);
+  };
+
+  const handleExportJson = (project: Project) => {
     const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -40,7 +58,13 @@ export default function Sidebar() {
     URL.revokeObjectURL(url);
   };
 
-  const handleImport = () => {
+  const handleCopyClipboard = async (project: Project) => {
+    await navigator.clipboard.writeText(JSON.stringify(project, null, 2));
+    setCopied(project.id);
+    setTimeout(() => setCopied(null), 1500);
+  };
+
+  const handleImportFile = () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
@@ -49,27 +73,59 @@ export default function Sidebar() {
       if (!file) return;
       const reader = new FileReader();
       reader.onload = (ev) => {
-        try {
-          const proj = JSON.parse(ev.target?.result as string) as Project;
-          proj.id = nanoid();
-          importProject(proj);
-        } catch {
-          alert('Invalid Petri net JSON file');
-        }
+        const proj = parseProject(ev.target?.result as string);
+        if (proj) doImport(proj);
+        else alert('Invalid Petri net JSON file');
       };
       reader.readAsText(file);
     };
     input.click();
   };
 
+  const handlePasteImport = () => {
+    const proj = parseProject(pasteText);
+    if (!proj) { setPasteError(true); return; }
+    setPasteError(false);
+    setPasteText('');
+    doImport(proj);
+  };
+
   return (
-    <div className="w-56 flex flex-col bg-sidebar border-r border-sidebar-border">
+    <div className="w-60 flex flex-col bg-sidebar border-r border-sidebar-border">
       {/* Header */}
-      <div className="px-3 py-2.5 flex items-center justify-between border-b border-sidebar-border">
+      <div className="px-3 py-2.5 border-b border-sidebar-border">
         <span className="text-sm font-semibold text-foreground">Projects</span>
-        <Button variant="ghost" size="sm" onClick={handleImport} className="h-6 px-2 text-xs text-muted-foreground">
-          ↑ Import
+      </div>
+
+      {/* Import buttons */}
+      <div className="px-2 py-2 flex gap-1.5 border-b border-sidebar-border">
+        <Button variant="outline" size="sm" className="flex-1 h-8 text-xs gap-1" onClick={handleImportFile}>
+          ↑ File
         </Button>
+        <Button
+          variant="outline" size="sm"
+          className={cn('flex-1 h-8 text-xs gap-1', pasteText && 'border-primary')}
+          onClick={handlePasteImport}
+          disabled={!pasteText.trim()}
+          title="Import from pasted JSON"
+        >
+          ⎘ Paste
+        </Button>
+      </div>
+
+      {/* Paste JSON area */}
+      <div className="px-2 pb-2 border-b border-sidebar-border">
+        <textarea
+          className={cn(
+            'w-full h-16 text-xs rounded border px-2 py-1.5 font-mono resize-none bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring',
+            pasteError ? 'border-destructive' : 'border-input'
+          )}
+          placeholder="Paste JSON here…"
+          value={pasteText}
+          onChange={e => { setPasteText(e.target.value); setPasteError(false); }}
+          spellCheck={false}
+        />
+        {pasteError && <p className="text-xs text-destructive mt-0.5">Invalid Petri net JSON</p>}
       </div>
 
       <ScrollArea className="flex-1">
@@ -103,14 +159,41 @@ export default function Sidebar() {
                   <span className="flex-1 truncate text-xs">{proj.name}</span>
                 )}
                 <div className="hidden group-hover:flex gap-0.5">
-                  <button onClick={e => { e.stopPropagation(); setEditingProjectId(proj.id); setEditingProjectName(proj.name); }}
-                    className="text-muted-foreground hover:text-foreground p-0.5 rounded text-xs leading-none" title="Rename">✎</button>
-                  <button onClick={e => { e.stopPropagation(); handleExport(proj); }}
-                    className="text-muted-foreground hover:text-primary p-0.5 rounded text-xs leading-none" title="Export JSON">↓</button>
-                  <button onClick={e => { e.stopPropagation(); if (confirm(`Delete "${proj.name}"?`)) deleteProject(proj.id); }}
-                    className="text-muted-foreground hover:text-destructive p-0.5 rounded text-xs leading-none" title="Delete">✕</button>
+                  <button
+                    onClick={e => { e.stopPropagation(); setEditingProjectId(proj.id); setEditingProjectName(proj.name); }}
+                    className="text-muted-foreground hover:text-foreground p-0.5 rounded text-xs leading-none" title="Rename"
+                  >✎</button>
+                  <button
+                    onClick={e => { e.stopPropagation(); if (confirm(`Delete "${proj.name}"?`)) deleteProject(proj.id); }}
+                    className="text-muted-foreground hover:text-destructive p-0.5 rounded text-xs leading-none" title="Delete"
+                  >✕</button>
                 </div>
               </div>
+
+              {/* Export buttons — shown for active project */}
+              {proj.id === activeProjectId && (
+                <div className="mx-2 mb-1 flex gap-1">
+                  <Button
+                    variant="outline" size="sm"
+                    className="flex-1 h-7 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                    onClick={e => { e.stopPropagation(); handleExportJson(proj); }}
+                    title="Download as .petri.json"
+                  >
+                    ↓ JSON
+                  </Button>
+                  <Button
+                    variant="outline" size="sm"
+                    className={cn(
+                      'flex-1 h-7 text-xs gap-1',
+                      copied === proj.id ? 'border-green-500 text-green-700' : 'text-muted-foreground hover:text-foreground'
+                    )}
+                    onClick={e => { e.stopPropagation(); handleCopyClipboard(proj); }}
+                    title="Copy JSON to clipboard"
+                  >
+                    {copied === proj.id ? '✓ Copied' : '⎘ Copy'}
+                  </Button>
+                </div>
+              )}
 
               {/* Sheets for active project */}
               {proj.id === activeProjectId && activeProject && (
@@ -143,10 +226,14 @@ export default function Sidebar() {
                         <span className="flex-1 truncate">{sheet.name}</span>
                       )}
                       <div className="hidden group-hover:flex gap-0.5">
-                        <button onClick={e => { e.stopPropagation(); setEditingSheetId(sheet.id); setEditingSheetName(sheet.name); }}
-                          className="text-muted-foreground hover:text-foreground p-0.5 rounded text-xs leading-none">✎</button>
-                        <button onClick={e => { e.stopPropagation(); deleteSheet(sheet.id); }}
-                          className="text-muted-foreground hover:text-destructive p-0.5 rounded text-xs leading-none">✕</button>
+                        <button
+                          onClick={e => { e.stopPropagation(); setEditingSheetId(sheet.id); setEditingSheetName(sheet.name); }}
+                          className="text-muted-foreground hover:text-foreground p-0.5 rounded text-xs leading-none"
+                        >✎</button>
+                        <button
+                          onClick={e => { e.stopPropagation(); deleteSheet(sheet.id); }}
+                          className="text-muted-foreground hover:text-destructive p-0.5 rounded text-xs leading-none"
+                        >✕</button>
                       </div>
                     </div>
                   ))}

@@ -16,8 +16,9 @@ export default function PetriCanvas() {
   const sheet = useProjectStore(selectActiveSheet);
   const { tool, selectedId, selectedType, arcDraft, setTool, setSelected, setArcDraft, updateArcDraftMouse } = useUIStore();
   const { addPlace, addTransition, addArc, updatePlace, updateTransition, updateArc, deleteNode } = useProjectStore();
-  const { currentMarking } = useSimulationStore();
+  const { currentMarking, firingTransitionId, speed, history } = useSimulationStore();
   const { fireTransition } = useSimulation();
+  const lastFiredId = history.length > 0 ? history[history.length - 1].transitionId : null;
   const isInSimMode = currentMarking !== null;
 
   const svgRef = useRef<SVGSVGElement>(null);
@@ -170,7 +171,10 @@ export default function PetriCanvas() {
         const { x, y } = svgToWorld(e.clientX, e.clientY);
         setArcDraft({ sourceId: id, sourceType: type, mouseX: x, mouseY: y });
       } else {
-        if (arcDraft.sourceId !== id) addArc(arcDraft.sourceId, id);
+        if (arcDraft.sourceId !== id) {
+          const arcId = addArc(arcDraft.sourceId, id);
+          if (arcId) { setTool('select'); setSelected(arcId, 'arc'); }
+        }
         setArcDraft(null);
       }
       return;
@@ -220,6 +224,22 @@ export default function PetriCanvas() {
 
   const net = sheet.net;
   const marking = currentMarking ?? net.initialMarking;
+
+  // Set of transition IDs that are currently enabled (for arc highlighting)
+  const enabledTransIds = new Set(
+    Object.values(net.transitions)
+      .filter(t => isEnabled(t, net.arcs, net.places, marking))
+      .map(t => t.id)
+  );
+
+  // An arc is "active" when in sim mode and connected to an enabled transition
+  const isArcActive = (arc: { source: string; target: string }) =>
+    isInSimMode && (enabledTransIds.has(arc.source) || enabledTransIds.has(arc.target));
+
+  const isArcFiring = (arc: { source: string; target: string }) =>
+    firingTransitionId !== null && (arc.source === firingTransitionId || arc.target === firingTransitionId);
+
+  const animDurationMs = Math.max(80, speed * 0.55);
 
   // Arc draft source point
   let draftStart: { x: number; y: number } | null = null;
@@ -304,6 +324,9 @@ export default function PetriCanvas() {
             transitions={net.transitions}
             selected={isArcSelected}
             showHandle={isArcSelected && tool === 'select'}
+            active={isArcActive(arc)}
+            firing={isArcFiring(arc)}
+            animDurationMs={animDurationMs}
             onClick={(e) => handleArcClick(arc.id, e)}
             onCpMouseDown={(e) => handleArcCpMouseDown(arc.id, e)}
           />
@@ -341,6 +364,8 @@ export default function PetriCanvas() {
             selected={isTransSelected}
             isArcSource={arcDraft?.sourceId === t.id}
             isSimMode={isInSimMode}
+            firing={t.id === firingTransitionId}
+            wasLastFired={t.id === lastFiredId && t.id !== firingTransitionId}
             showRotationHandle={isTransSelected && tool === 'select'}
             onMouseDown={(e) => handleNodeMouseDown(t.id, 'transition', e)}
             onMouseUp={onMouseUp}

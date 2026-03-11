@@ -15,6 +15,8 @@ interface Props {
   selected: boolean;
   isArcSource: boolean;
   isSimMode: boolean;
+  firing: boolean;
+  wasLastFired: boolean;
   showRotationHandle: boolean;
   onMouseDown: (e: React.MouseEvent) => void;
   onMouseUp: (e: React.MouseEvent) => void;
@@ -23,23 +25,42 @@ interface Props {
 }
 
 export default function TransitionNode({
-  transition, enabled, selected, isArcSource, isSimMode,
+  transition, enabled, selected, isArcSource, isSimMode, firing, wasLastFired,
   showRotationHandle, onMouseDown, onMouseUp, onClick, onRotationHandleMouseDown
 }: Props) {
   const isEnabledActive = enabled && isSimMode;
-  const fill = isEnabledActive ? '#f0fdf4' : selected ? '#eef2ff' : '#ffffff';
+  const fill = firing ? '#dcfce7'
+    : wasLastFired ? '#fefce8'
+    : isEnabledActive ? '#f0fdf4'
+    : selected ? '#eef2ff'
+    : '#ffffff';
   const strokeColor = selected ? '#6366f1'
     : isArcSource ? '#818cf8'
+    : firing ? '#15803d'
+    : wasLastFired ? '#d97706'
     : isEnabledActive ? '#16a34a'
     : '#94a3b8';
-  const strokeWidth = selected || isArcSource || isEnabledActive ? 2.5 : 1.5;
+  const strokeWidth = selected || isArcSource || isEnabledActive || firing || wasLastFired ? 2.5 : 1.5;
 
   const rotation = transition.rotation ?? 0;
 
   return (
     <g transform={`translate(${transition.x},${transition.y}) rotate(${rotation})`}>
+      {/* Firing pulse ring */}
+      {firing && (
+        <rect x={-W / 2 - 6} y={-H / 2 - 6} width={W + 12} height={H + 12} fill="none" stroke="#15803d" strokeWidth={2} rx={6} opacity={0.5}>
+          <animate attributeName="opacity" values="0.5;0.15;0.5" dur="600ms" repeatCount="indefinite" />
+          <animate attributeName="stroke-width" values="2;4;2" dur="600ms" repeatCount="indefinite" />
+        </rect>
+      )}
+
+      {/* Previously fired — dim amber glow */}
+      {wasLastFired && !firing && (
+        <rect x={-W / 2 - 3} y={-H / 2 - 3} width={W + 6} height={H + 6} fill="#fde68a" rx={5} opacity={0.35} />
+      )}
+
       {/* Enabled glow */}
-      {isEnabledActive && (
+      {isEnabledActive && !firing && !wasLastFired && (
         <rect x={-W / 2 - 3} y={-H / 2 - 3} width={W + 6} height={H + 6} fill="#bbf7d0" rx={5} opacity={0.6} />
       )}
 
@@ -55,7 +76,7 @@ export default function TransitionNode({
 
       <text
         textAnchor="middle" dominantBaseline="central"
-        fontSize={11} fill="#1e293b"
+        fontSize={12} fontWeight="600" fill="#0f172a"
         className="select-none pointer-events-none"
       >
         {transition.label}

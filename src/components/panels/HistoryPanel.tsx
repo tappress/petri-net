@@ -9,7 +9,7 @@ export default function HistoryPanel() {
   }
 
   return (
-    <ScrollArea className="max-h-56">
+    <ScrollArea className="h-full">
       {[...history].reverse().map(r => (
         <div key={r.step} className="flex items-center gap-2 px-3 py-1.5 border-b border-border/50 text-xs">
           <span className="text-muted-foreground tabular-nums w-6 text-right">#{r.step}</span>

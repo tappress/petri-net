@@ -70,5 +70,6 @@
   }
   html {
     @apply font-sans;
+    font-size: 1.0625rem;
   }
 }

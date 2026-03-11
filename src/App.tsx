@@ -6,6 +6,7 @@ import PetriCanvas from '@/components/canvas/PetriCanvas';
 import { useProjectStore } from '@/store/projectStore';
 import { loadAllProjects } from '@/persistence/storage';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import SimulationRunner from '@/components/SimulationRunner';
 
 export default function App() {
   const { loadProjects, createProject } = useProjectStore();
@@ -22,6 +23,7 @@ export default function App() {
 
   return (
     <TooltipProvider delay={400}>
+      <SimulationRunner />
       <div className="flex flex-col h-screen w-screen overflow-hidden bg-background">
         {/* Top bar */}
         <header className="flex items-center px-4 py-2 bg-card border-b border-border shadow-sm">

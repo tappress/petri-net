@@ -12,6 +12,7 @@ export function isEnabled(
     if (arc.type === 'inhibitor') {
       if (tokens >= arc.weight) return false;
     } else {
+      // normal, read, reset arcs all require sufficient tokens
       if (tokens < arc.weight) return false;
     }
   }
@@ -35,11 +36,12 @@ export function fire(
   const next = { ...marking };
   for (const arc of Object.values(arcs)) {
     if (arc.target === transition.id) {
-      if (arc.type === 'reset') {
-        next[arc.source] = 0;
-      } else {
+      if (arc.type === 'normal') {
         next[arc.source] = (next[arc.source] ?? 0) - arc.weight;
+      } else if (arc.type === 'reset') {
+        next[arc.source] = 0;
       }
+      // inhibitor and read arcs: guard only — no token consumption
     }
     if (arc.source === transition.id) {
       next[arc.target] = (next[arc.target] ?? 0) + arc.weight;

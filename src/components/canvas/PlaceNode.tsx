@@ -29,11 +29,11 @@ export default function PlaceNode({ place, tokens, selected, isArcSource, onMous
     >
       <circle r={RADIUS} fill={fill} stroke={strokeColor} strokeWidth={strokeWidth} />
       <TokenDisplay count={tokens} />
-      <text y={RADIUS + 14} textAnchor="middle" fontSize={11} fill="#64748b" className="select-none pointer-events-none">
+      <text y={RADIUS + 15} textAnchor="middle" fontSize={12} fontWeight="600" fill="#0f172a" className="select-none pointer-events-none">
         {place.label}
       </text>
       {place.capacity !== null && (
-        <text y={RADIUS + 25} textAnchor="middle" fontSize={9} fill="#94a3b8" className="select-none pointer-events-none">
+        <text y={RADIUS + 27} textAnchor="middle" fontSize={10} fill="#64748b" className="select-none pointer-events-none">
           cap:{place.capacity}
         </text>
       )}

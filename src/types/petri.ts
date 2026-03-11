@@ -19,7 +19,7 @@ export interface Transition {
   rotation: number; // degrees
 }
 
-export type ArcType = 'normal' | 'inhibitor' | 'reset';
+export type ArcType = 'normal' | 'inhibitor' | 'reset' | 'read';
 
 export interface Arc {
   id: ArcId;
