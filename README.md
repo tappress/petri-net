@@ -1,73 +1,148 @@
-# React + TypeScript + Vite
+# Petri Net Editor
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A browser-based Place/Transition (P/T) Petri net editor and simulator built with React, TypeScript, and Vite.
 
-Currently, two official plugins are available:
+![Petri Net Editor](public/petri.png)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+**Repo:** [github.com/tappress/petri-net](https://github.com/tappress/petri-net)
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Features
 
-## Expanding the ESLint configuration
+### Editor
+- Draw **places** (circles), **transitions** (rectangles), and **arcs**
+- Drag nodes to reposition; bend arcs via draggable control points
+- Rotate transitions freely with an on-canvas handle
+- Auto-select and move newly spawned elements without switching tools
+- Delete selected element with `Del` / `Backspace`
+- Pan with middle-click or select-drag; zoom with scroll wheel or ± buttons
+- Properties panel: edit labels, token counts, arc weights, place capacity, transition priority
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Arc Types
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+| Type | Semantics |
+|---|---|
+| **Normal** | Consumes tokens from input place, produces to output place |
+| **Inhibitor** | Disables transition when source place has ≥ weight tokens |
+| **Read (Test)** | Checks token count without consuming — transition reads shared resource |
+| **Reset** | Zeroes the source place on fire, regardless of token count |
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Simulation
+- **Start Simulation** — enter sim mode showing initial enabling state before any step
+- **Step** — fire one enabled transition (`Space`)
+- **Step Back** — undo last step, restore previous marking (`←`)
+- **Auto** — continuous stepping at configurable speed (Fast / Normal / Slow)
+- Enabled transitions highlighted green; last fired transition highlighted amber
+- Token dots animate along arcs during firing
+- Full firing history with step-back support
+- Priority-based conflict resolution; nondeterministic among equal-priority transitions
+- Deadlock detection (auto-mode stops automatically)
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Projects & Persistence
+- Multiple projects, each with multiple sheets
+- Auto-saved to **IndexedDB** (localStorage fallback)
+- Rename, duplicate, delete projects and sheets
+
+### Export / Import
+
+| Action | How |
+|---|---|
+| Download `.petri.json` | ↓ JSON button next to active project |
+| Copy JSON to clipboard | ⎘ Copy button |
+| Import from file | ↑ File button at top of sidebar |
+| Import by pasting | Paste JSON text in sidebar textarea → ⎘ Paste |
+| AI-assisted generation | ⎘ Copy JSON docs in header — paste alongside a net screenshot into any LLM |
+
+---
+
+## Getting Started
+
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open [http://localhost:5173](http://localhost:5173).
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Build
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run build
 ```
+
+### Tests
+
+```bash
+npm test            # run once
+npm run test:watch  # watch mode
+```
+
+The test suite covers the full simulation engine: enabling rules, firing rules, all arc types, conflict resolution, priority, deadlock detection, place capacity, and token conservation. Includes fixture tests against a real exported net.
+
+---
+
+## JSON Format
+
+Projects are stored and exported as plain JSON:
+
+```
+Project
+└── sheets[]
+    └── net
+        ├── places[]       — id, label, x, y, tokens, capacity
+        ├── transitions[]  — id, label, x, y, priority, rotation
+        ├── arcs[]         — id, source, target, weight, type, cpDx, cpDy
+        └── initialMarking — { placeId: tokenCount }
+```
+
+Arcs must connect a Place to a Transition (or vice versa) — never P→P or T→T.
+
+Use the **⎘ Copy JSON docs** button in the header to copy the full format specification, then paste it alongside a Petri net diagram into an LLM to generate valid JSON automatically.
+
+---
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|---|---|
+| `V` | Select tool |
+| `P` | Add place |
+| `T` | Add transition |
+| `A` | Add arc |
+| `Esc` | Select tool / Stop simulation |
+| `Space` | Step (sim mode) |
+| `←` | Step back (sim mode) |
+| `Del` / `Backspace` | Delete selected element |
+
+---
+
+## Tech Stack
+
+| | |
+|---|---|
+| Framework | React 19 + TypeScript |
+| Build | Vite 7 |
+| State | Zustand + Immer |
+| UI | shadcn/ui (Base UI), Tailwind CSS 4 |
+| Persistence | IndexedDB (idb), localStorage fallback |
+| Testing | Vitest |
+| Font | Geist Variable |
+
+---
+
+## Formal Semantics
+
+Implements standard P/T net semantics:
+
+**Enabling:** transition *t* is enabled at marking *M* iff `∀ input place p: M(p) ≥ w(p,t)`
+
+**Firing:** `M'(p) = M(p) − w(p,t) + w(t,p)` — atomic, non-interruptible
+
+Extensions: inhibitor arcs, read/test arcs, reset arcs, place capacity constraints, transition priority.
+
+---
+
+## License
+
+MIT

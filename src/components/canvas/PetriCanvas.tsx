@@ -78,11 +78,9 @@ export default function PetriCanvas() {
 
     if (tool === 'addPlace') {
       const id = addPlace(x, y);
-      setTool('select');
       setSelected(id, 'place');
     } else if (tool === 'addTransition') {
       const id = addTransition(x, y);
-      setTool('select');
       setSelected(id, 'transition');
     } else if (tool === 'addArc') {
       if (arcDraft) setArcDraft(null);
@@ -151,7 +149,7 @@ export default function PetriCanvas() {
 
   const handleNodeMouseDown = useCallback((id: string, type: 'place' | 'transition', e: React.MouseEvent) => {
     e.stopPropagation();
-    if (tool === 'select') {
+    if (tool === 'select' || selectedId === id) {
       const { x, y } = svgToWorld(e.clientX, e.clientY);
       const node = type === 'place' ? sheet?.net.places[id] : sheet?.net.transitions[id];
       if (node) {
@@ -160,7 +158,7 @@ export default function PetriCanvas() {
         setDraggingId(id);
       }
     }
-  }, [tool, svgToWorld, sheet]);
+  }, [tool, selectedId, svgToWorld, sheet]);
 
   const handleNodeClick = useCallback((id: string, type: 'place' | 'transition', e: React.MouseEvent) => {
     e.stopPropagation();
@@ -173,7 +171,7 @@ export default function PetriCanvas() {
       } else {
         if (arcDraft.sourceId !== id) {
           const arcId = addArc(arcDraft.sourceId, id);
-          if (arcId) { setTool('select'); setSelected(arcId, 'arc'); }
+          if (arcId) { setSelected(arcId, 'arc'); }
         }
         setArcDraft(null);
       }
@@ -323,7 +321,7 @@ export default function PetriCanvas() {
             places={net.places}
             transitions={net.transitions}
             selected={isArcSelected}
-            showHandle={isArcSelected && tool === 'select'}
+            showHandle={isArcSelected}
             active={isArcActive(arc)}
             firing={isArcFiring(arc)}
             animDurationMs={animDurationMs}
@@ -366,7 +364,7 @@ export default function PetriCanvas() {
             isSimMode={isInSimMode}
             firing={t.id === firingTransitionId}
             wasLastFired={t.id === lastFiredId && t.id !== firingTransitionId}
-            showRotationHandle={isTransSelected && tool === 'select'}
+            showRotationHandle={isTransSelected}
             onMouseDown={(e) => handleNodeMouseDown(t.id, 'transition', e)}
             onMouseUp={onMouseUp}
             onClick={(e) => handleNodeClick(t.id, 'transition', e)}
