@@ -1,20 +1,21 @@
-import { useSimulationStore } from '../../store/simulationStore';
+import { useSimulationStore } from '@/store/simulationStore';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function HistoryPanel() {
   const { history } = useSimulationStore();
 
   if (history.length === 0) {
-    return <div className="p-3 text-slate-500 text-sm">No firings yet.</div>;
+    return <div className="p-4 text-sm text-muted-foreground">No firings yet.</div>;
   }
 
   return (
-    <div className="overflow-y-auto max-h-64">
+    <ScrollArea className="max-h-56">
       {[...history].reverse().map(r => (
-        <div key={r.step} className="px-3 py-1.5 border-b border-slate-800 text-xs">
-          <span className="text-slate-500 mr-2">#{r.step}</span>
-          <span className="text-green-400 font-mono">{r.transitionLabel}</span>
+        <div key={r.step} className="flex items-center gap-2 px-3 py-1.5 border-b border-border/50 text-xs">
+          <span className="text-muted-foreground tabular-nums w-6 text-right">#{r.step}</span>
+          <span className="text-primary font-mono font-medium">{r.transitionLabel}</span>
         </div>
       ))}
-    </div>
+    </ScrollArea>
   );
 }

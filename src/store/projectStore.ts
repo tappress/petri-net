@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { nanoid } from 'nanoid';
-import type { Project, Sheet, PetriNet, Marking, Arc, Place, Transition } from '../types/petri';
-import { saveProject, deleteProject as dbDeleteProject } from '../persistence/storage';
+import type { Project, Sheet, PetriNet, Marking, Arc, Place, Transition } from '@/types/petri';
+import { saveProject, deleteProject as dbDeleteProject } from '@/persistence/storage';
 
 function emptyNet(): PetriNet {
   return { places: {}, transitions: {}, arcs: {}, initialMarking: {} };
@@ -181,7 +181,7 @@ export const useProjectStore = create<ProjectState>()(
           const sheet = activeSheet(state);
           if (!sheet) return;
           const count = Object.keys(sheet.net.transitions).length + 1;
-          sheet.net.transitions[id] = { id, label: `T${count}`, x, y, priority: 0 };
+          sheet.net.transitions[id] = { id, label: `T${count}`, x, y, priority: 0, rotation: 0 };
           sheet.updatedAt = Date.now();
         });
         persist(get());
@@ -202,7 +202,7 @@ export const useProjectStore = create<ProjectState>()(
             a => a.source === source && a.target === target
           );
           if (exists) return;
-          sheet.net.arcs[id] = { id, source, target, weight: 1, type: 'normal' };
+          sheet.net.arcs[id] = { id, source, target, weight: 1, type: 'normal', cpDx: 0, cpDy: 0 };
           sheet.updatedAt = Date.now();
         });
         persist(get());

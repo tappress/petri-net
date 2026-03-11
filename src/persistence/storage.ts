@@ -1,6 +1,6 @@
 import { openDB } from 'idb';
 import type { DBSchema, IDBPDatabase } from 'idb';
-import type { Project } from '../types/petri';
+import type { Project } from '@/types/petri';
 
 interface PetriDB extends DBSchema {
   projects: {

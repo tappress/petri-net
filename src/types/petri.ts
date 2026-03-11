@@ -16,6 +16,7 @@ export interface Transition {
   x: number;
   y: number;
   priority: number;
+  rotation: number; // degrees
 }
 
 export type ArcType = 'normal' | 'inhibitor' | 'reset';
@@ -26,6 +27,8 @@ export interface Arc {
   target: NodeId;
   weight: number;
   type: ArcType;
+  cpDx: number; // control-point offset from straight-line midpoint
+  cpDy: number;
 }
 
 export interface Marking {
@@ -66,4 +69,4 @@ export interface FiringRecord {
 }
 
 export type SimulationMode = 'idle' | 'running';
-export type ToolMode = 'select' | 'addPlace' | 'addTransition' | 'addArc' | 'delete';
+export type ToolMode = 'select' | 'addPlace' | 'addTransition' | 'addArc';

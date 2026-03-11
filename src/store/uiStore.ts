@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ToolMode } from '../types/petri';
+import type { ToolMode } from '@/types/petri';
 
 interface ArcDraft {
   sourceId: string;

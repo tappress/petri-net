@@ -1,8 +1,8 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { useProjectStore, selectActiveSheet } from '../store/projectStore';
-import { useSimulationStore } from '../store/simulationStore';
-import { step, fire } from '../engine/petri';
-import type { Marking } from '../types/petri';
+import { useProjectStore, selectActiveSheet } from '@/store/projectStore';
+import { useSimulationStore } from '@/store/simulationStore';
+import { step, fire } from '@/engine/petri';
+import type { Marking } from '@/types/petri';
 
 export function useSimulation() {
   const sheet = useProjectStore(selectActiveSheet);
@@ -56,9 +56,8 @@ export function useSimulation() {
   }, []);
 
   const resetSim = useCallback(() => {
-    if (!sheet) return;
-    reset(sheet.net.initialMarking);
-  }, [sheet, reset]);
+    reset();
+  }, [reset]);
 
   // Manual transition fire (used by canvas click)
   const fireTransition = useCallback((transitionId: string) => {

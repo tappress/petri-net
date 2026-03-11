@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import type { FiringRecord, Marking, SimulationMode } from '../types/petri';
+import type { FiringRecord, Marking, SimulationMode } from '@/types/petri';
 
 interface SimulationState {
   mode: SimulationMode;
@@ -14,7 +14,7 @@ interface SimulationState {
   pushHistory: (record: FiringRecord) => void;
   clearHistory: () => void;
   setSpeed: (ms: number) => void;
-  reset: (initialMarking: Marking) => void;
+  reset: () => void;
 }
 
 export const useSimulationStore = create<SimulationState>()(
@@ -40,9 +40,9 @@ export const useSimulationStore = create<SimulationState>()(
 
     setSpeed: (ms) => set(state => { state.speed = ms; }),
 
-    reset: (initialMarking) => set(state => {
+    reset: () => set(state => {
       state.mode = 'idle';
-      state.currentMarking = { ...initialMarking };
+      state.currentMarking = null;
       state.history = [];
       state.stepCount = 0;
     }),

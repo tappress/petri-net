@@ -1,4 +1,4 @@
-import type { Arc, ArcId, Marking, NodeId, PetriNet, Place, Transition } from '../types/petri';
+import type { Arc, ArcId, Marking, NodeId, PetriNet, Place, Transition } from '@/types/petri';
 
 export function isEnabled(
   transition: Transition,
@@ -15,7 +15,6 @@ export function isEnabled(
       if (tokens < arc.weight) return false;
     }
   }
-  // Check output capacity
   for (const arc of Object.values(arcs)) {
     if (arc.source !== transition.id) continue;
     if (arc.type === 'reset') continue;
@@ -71,7 +70,7 @@ export function step(net: PetriNet, marking: Marking): {
   return { fired: chosen.id, next: fire(chosen, net.arcs, marking) };
 }
 
-/** Compute connection point on circle boundary */
+/** Connection point on place circle boundary, aimed toward (toX, toY) */
 export function placeConnectionPoint(
   place: Place,
   toX: number,
@@ -84,7 +83,7 @@ export function placeConnectionPoint(
   return { x: place.x + (dx / dist) * radius, y: place.y + (dy / dist) * radius };
 }
 
-/** Compute connection point on rectangle boundary */
+/** Connection point on (possibly rotated) transition rectangle boundary, aimed toward (toX, toY) */
 export function transitionConnectionPoint(
   t: Transition,
   toX: number,
@@ -92,15 +91,42 @@ export function transitionConnectionPoint(
   w: number,
   h: number
 ): { x: number; y: number } {
+  const angle = ((t.rotation ?? 0) * Math.PI) / 180;
   const dx = toX - t.x;
   const dy = toY - t.y;
-  const hw = w / 2;
-  const hh = h / 2;
-  if (dx === 0 && dy === 0) return { x: t.x, y: t.y };
 
-  const tx = dx !== 0 ? hw / Math.abs(dx) : Infinity;
-  const ty = dy !== 0 ? hh / Math.abs(dy) : Infinity;
+  // Transform direction into local (unrotated) space
+  const cosNeg = Math.cos(-angle);
+  const sinNeg = Math.sin(-angle);
+  const lx = dx * cosNeg - dy * sinNeg;
+  const ly = dx * sinNeg + dy * cosNeg;
 
-  const t2 = Math.min(tx, ty);
-  return { x: t.x + dx * t2, y: t.y + dy * t2 };
+  const hw = w / 2, hh = h / 2;
+  if (lx === 0 && ly === 0) return { x: t.x, y: t.y };
+
+  const tx = lx !== 0 ? hw / Math.abs(lx) : Infinity;
+  const ty = ly !== 0 ? hh / Math.abs(ly) : Infinity;
+  const s = Math.min(tx, ty);
+  const localX = lx * s;
+  const localY = ly * s;
+
+  // Transform back to world space
+  const cosA = Math.cos(angle);
+  const sinA = Math.sin(angle);
+  return {
+    x: t.x + localX * cosA - localY * sinA,
+    y: t.y + localX * sinA + localY * cosA,
+  };
+}
+
+/** World-space control point for a bent arc */
+export function arcControlPoint(
+  arc: Arc,
+  srcX: number, srcY: number,
+  tgtX: number, tgtY: number
+): { x: number; y: number } {
+  return {
+    x: (srcX + tgtX) / 2 + (arc.cpDx ?? 0),
+    y: (srcY + tgtY) / 2 + (arc.cpDy ?? 0),
+  };
 }
