@@ -2,7 +2,9 @@ import React from 'react';
 import { useUIStore } from '@/store/uiStore';
 import { useSimulation } from '@/hooks/useSimulation';
 import { useSimulationStore } from '@/store/simulationStore';
-import { useProjectStore } from '@/store/projectStore';
+import { useProjectStore, selectActiveSheet } from '@/store/projectStore';
+import { useAnalysisStore } from '@/store/analysisStore';
+import { buildCoverabilityTree, analyzeNet } from '@/engine/coverability';
 import type { ToolMode } from '@/types/petri';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -22,6 +24,21 @@ export default function Toolbar() {
   const { mode: simMode, isSimActive, stepOnce, stepBack, enterSim, startAuto, pauseAuto, resetSim, speed, history } = useSimulation();
   const setSpeed = useSimulationStore(s => s.setSpeed);
   const { deleteNode, deleteArc } = useProjectStore();
+  const sheet = useProjectStore(selectActiveSheet);
+  const { isVisible: analysisVisible, show: showAnalysis, hide: hideAnalysis, setResults, setComputing } = useAnalysisStore();
+
+  const handleAnalyze = React.useCallback(() => {
+    if (!sheet) return;
+    if (analysisVisible) { hideAnalysis(); return; }
+    setComputing(true);
+    showAnalysis();
+    // Run in a microtask so the panel opens before computing
+    setTimeout(() => {
+      const tree = buildCoverabilityTree(sheet.net, sheet.net.initialMarking);
+      const props = analyzeNet(tree, sheet.net);
+      setResults(tree, props);
+    }, 0);
+  }, [sheet, analysisVisible, showAnalysis, hideAnalysis, setResults, setComputing]);
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -91,6 +108,21 @@ export default function Toolbar() {
               </Button>
             </TooltipTrigger>
             <TooltipContent>Enter simulation mode</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger render={<span />}>
+              <Button
+                variant={analysisVisible ? 'default' : 'outline'}
+                size="sm"
+                className="h-8 px-2.5 text-xs"
+                onClick={handleAnalyze}
+                disabled={!sheet || Object.keys(sheet.net.places).length === 0}
+              >
+                ◈ Analyze
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Build coverability tree &amp; analyze properties</TooltipContent>
           </Tooltip>
 
           <div className="ml-auto">

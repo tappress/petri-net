@@ -36,7 +36,7 @@ A browser-based Place/Transition (P/T) Petri net editor and simulator built with
 - Enabled transitions highlighted green; last fired transition highlighted amber
 - Token dots animate along arcs during firing
 - Full firing history with step-back support
-- Priority-based conflict resolution; nondeterministic among equal-priority transitions
+- Nondeterministic conflict resolution (standard P/T semantics); optional priority extension to bias firing order
 - Deadlock detection (auto-mode stops automatically)
 
 ### Projects & Persistence
@@ -139,7 +139,9 @@ Implements standard P/T net semantics:
 
 **Firing:** `M'(p) = M(p) − w(p,t) + w(t,p)` — atomic, non-interruptible
 
-Extensions: inhibitor arcs, read/test arcs, reset arcs, place capacity constraints, transition priority.
+**Conflict:** when multiple transitions are enabled simultaneously, one is chosen **nondeterministically** (uniform random) — this is standard P/T net behaviour.
+
+**Extensions** (non-standard): inhibitor arcs, read/test arcs, reset arcs, place capacity constraints, transition priority (higher priority biases conflict resolution away from pure randomness).
 
 ---
 
