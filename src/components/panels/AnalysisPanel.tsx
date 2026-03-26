@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useAnalysisStore } from '@/store/analysisStore';
-import { useProjectStore } from '@/store/projectStore';
 import { checkReachability, fmtOmegaMarking } from '@/engine/coverability';
 import type { CoverabilityTree, Marking, NodeId } from '@/types/petri';
 import { Button } from '@/components/ui/button';
@@ -259,8 +258,6 @@ function PropRow({ label, ok, detail }: { label: string; ok: boolean; detail?: s
 // ─── Reachability checker (Task 3) ───────────────────────────────────────────
 
 function ReachabilityChecker({ tree }: { tree: CoverabilityTree }) {
-  const { updatePlace } = useProjectStore();
-  const hide = useAnalysisStore(s => s.hide);
   const [values, setValues] = useState<Record<NodeId, string>>(() => {
     const init: Record<NodeId, string> = {};
     for (const p of tree.placeIds) init[p] = '0';
@@ -274,14 +271,14 @@ function ReachabilityChecker({ tree }: { tree: CoverabilityTree }) {
       const v = parseInt(values[p] ?? '0', 10);
       target[p] = isNaN(v) || v < 0 ? 0 : v;
     }
-    const { reachable, coveringNodeId } = checkReachability(tree, target);
-    if (reachable && coveringNodeId) {
-      for (const p of tree.placeIds) {
-        updatePlace(p, { tokens: target[p] ?? 0 });
-      }
-      hide();
+    const { reachable } = checkReachability(tree, target);
+    const markingStr = '(' + tree.placeIds.map(p => target[p] ?? 0).join(', ') + ')';
+    if (reachable) {
+      setResult({
+        reachable: true,
+        detail: `Marking ${markingStr} IS reachable — a covering node was found in the tree.`,
+      });
     } else {
-      const markingStr = '(' + tree.placeIds.map(p => target[p] ?? 0).join(', ') + ')';
       setResult({
         reachable: false,
         detail: `Marking ${markingStr} is NOT reachable — no covering node found in the tree.`,
@@ -317,7 +314,11 @@ function ReachabilityChecker({ tree }: { tree: CoverabilityTree }) {
         Check Reachability
       </Button>
       {result && (
-        <div className="text-xs rounded px-2 py-1.5 mt-1 leading-snug bg-red-50 border border-red-200 text-red-800">
+        <div className={`text-xs rounded px-2 py-1.5 mt-1 leading-snug ${
+          result.reachable
+            ? 'bg-green-50 border border-green-200 text-green-800'
+            : 'bg-red-50 border border-red-200 text-red-800'
+        }`}>
           {result.detail}
         </div>
       )}
