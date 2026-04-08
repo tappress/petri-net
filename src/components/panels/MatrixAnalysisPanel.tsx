@@ -20,6 +20,7 @@ interface ComputedAnalysis {
   tInvariants: number[][];
   pInvariants: number[][];
   treeProperties: NetProperties;
+  treeHasCycle: boolean;
   cf: number[];
   muPrime: number[];
   matchesTree: boolean;
@@ -520,9 +521,12 @@ export default function MatrixAnalysisPanel() {
 
   const computed = useMemo<ComputedAnalysis | null>(() => {
     if (!result) return null;
-    const { matrices, firingPath, tSteps, pSteps, treeProperties } = result;
+    const { matrices, firingPath, tSteps, pSteps, tree, treeProperties } = result;
     const tInvariants = tSteps.basis;
     const pInvariants = pSteps.basis;
+
+    // Tree has a structural cycle iff some marking is revisited (duplicate node).
+    const treeHasCycle = Object.values(tree.nodes).some(n => n.nodeType === 'duplicate');
 
     // μ' = μ + C·f(σ)
     const cf = matVecMul(matrices.C, firingPath.firingVector);
@@ -569,6 +573,7 @@ export default function MatrixAnalysisPanel() {
       tInvariants,
       pInvariants,
       treeProperties,
+      treeHasCycle,
       cf,
       muPrime,
       matchesTree,
@@ -629,6 +634,7 @@ function MatrixContent({ computed }: { computed: ComputedAnalysis }) {
     tInvariants,
     pInvariants,
     treeProperties,
+    treeHasCycle,
     cf,
     muPrime,
     matchesTree,
@@ -1105,6 +1111,7 @@ function MatrixContent({ computed }: { computed: ComputedAnalysis }) {
             rows={buildComparisonRows({
               matrix: { conserves, bounded, hasCycle, sequential, invariant },
               tree: treeProperties,
+              treeHasCycle,
               matrices,
               pInvariants,
               tInvariants,
@@ -1137,6 +1144,7 @@ interface ComparisonContext {
     invariant: boolean;
   };
   tree: NetProperties;
+  treeHasCycle: boolean;
   matrices: NetMatrices;
   pInvariants: number[][];
   tInvariants: number[][];
@@ -1190,28 +1198,48 @@ function buildComparisonRows(ctx: ComparisonContext): ComparisonRow[] {
   boundedRow.detail = renderBoundedDetail(boundedRow.status);
   rows.push(boundedRow);
 
-  // 3) Жвавість / Цикли
-  // Tree: live (no dead transitions, no deadlocks).
-  // Matrix: positive T-inv exists ⇒ потенційний цикл.
-  // For bounded live nets a positive T-inv must exist. Matrix > tree means structural cycle
-  // not reachable from μ₀.
-  const cycleRow = classify(
-    'Цикли / живість',
+  // 3a) Наявність циклів
+  // Matrix: positive T-invariant exists.
+  // Tree: at least one duplicate node (some marking revisited along a firing sequence).
+  const cyclesRow = classify(
+    'Наявність циклів',
     matrix.hasCycle,
+    ctx.treeHasCycle,
+    {
+      confirmed:
+        'Матриця знаходить позитивний T-інваріант; дерево має дублікат — деяка розмітка повторюється вздовж шляху. Циклічна поведінка існує.',
+      consistent:
+        'Циклів не виявлено: матриця не знайшла позитивного T-інваріанта, у дереві немає повторюваних маркувань.',
+      matrixStronger:
+        'Матриця виявила структурний цикл (позитивний T-інваріант), але в дереві жодне маркування не повторюється — цикл існує структурно, проте не активується з μ₀.',
+      treeStronger:
+        'СУПЕРЕЧНІСТЬ: у дереві є повторювані маркування, але матриця не знайшла позитивного T-інваріанта. Перевірте побудову.',
+    },
+  );
+  cyclesRow.detail = renderCyclesDetail(cyclesRow.status, ctx);
+  rows.push(cyclesRow);
+
+  // 3b) Живість
+  // Matrix: necessary structural conditions (sequential ⇒ every transition in some positive
+  // T-inv) — necessary but not sufficient for behavioral liveness.
+  // Tree: direct liveness check (no deadlocks AND no dead transitions).
+  const livenessRow = classify(
+    'Живість',
+    matrix.sequential,
     tree.live,
     {
       confirmed:
-        'Матриця знаходить позитивний T-інваріант, а дерево показує живість — циклічна поведінка підтверджена.',
+        'Усі необхідні структурні умови виконані (кожен перехід у позитивному T-інваріанті) і поведінково мережа жива — немає тупиків і мертвих переходів.',
       consistent:
-        'Жоден з методів не виявив циклічної поведінки, що повертає мережу до початкового стану.',
+        'Живість не виявлена жодним методом: матриця показує, що структурні умови не виконані, дерево — що мережа фактично не жива.',
       matrixStronger:
-        'Матриця виявила структурний цикл (позитивний T-інваріант), але в дереві є тупикові вершини або мертві переходи. Цикл існує структурно, проте не досяжний з початкового маркування μ₀.',
+        'Матриця показує, що необхідні структурні умови живості виконуються, але дерево виявило фактичний тупик або мертвий перехід. Структурно мережа могла би бути живою, проте з μ₀ існує шлях, який її «руйнує».',
       treeStronger:
-        'СУПЕРЕЧНІСТЬ: дерево показує живість, а матриця не знайшла позитивного T-інваріанта. Для живої обмеженої мережі такий інваріант має існувати — перевірте побудову.',
+        'СУПЕРЕЧНІСТЬ: дерево показує живість, але матриця знайшла переходи поза будь-яким позитивним T-інваріантом. У живій (бодай обмеженій) мережі цього не може бути — перевірте побудову.',
     },
   );
-  cycleRow.detail = renderCycleDetail(cycleRow.status, ctx);
-  rows.push(cycleRow);
+  livenessRow.detail = renderLivenessDetail(livenessRow.status, ctx);
+  rows.push(livenessRow);
 
   // 4) Послідовність / потенційна живість
   // Matrix sequential: every transition is in some positive T-invariant.
@@ -1294,7 +1322,7 @@ function renderConservesDetail(
   );
 }
 
-function renderCycleDetail(
+function renderCyclesDetail(
   status: ComparisonRow['status'],
   ctx: ComparisonContext,
 ): React.ReactNode {
@@ -1319,23 +1347,79 @@ function renderCycleDetail(
       </div>
       <p>
         Це означає, що послідовність спрацювань{' '}
-        <span className="font-mono">{fireParts.join(' + ')}</span> у будь-якому допустимому
-        порядку повертає мережу до тієї ж розмітки: μ + C·x = μ. Структурно{' '}
-        <strong>цикл існує</strong>.
+        <span className="font-mono">{fireParts.join(' + ')}</span> повертає мережу до тієї ж
+        розмітки: μ + C·x = μ. Структурно <strong>цикл існує</strong>.
       </p>
       <p>
-        Проте дерево покриваючих маркувань містить тупикові вершини або мертві переходи.
-        Це означає, що з μ₀ існує альтернативний вибір — інший спрацьовний перехід — який
-        виводить мережу <em>з</em> цього циклу у тупикову гілку. Цикл є{' '}
-        <strong>структурно</strong>, але не <strong>невідворотно</strong> досяжним: його
-        можна обійти, обравши «не той» перехід у конфлікті.
-      </p>
-      <p>
-        Обидва результати правильні: цикл закладений у структурі мережі, але живість потребує,
-        щоб <em>усі</em> можливі шляхи з μ₀ залишали його активним.
+        Проте у дереві покриваючих маркувань жодне маркування не повторюється з μ₀ — отже,
+        цей цикл недосяжний з початкового стану. Структура містить замкнений шлях, але
+        потрапити у нього з μ₀ неможливо. Це не суперечність: матриця бачить структуру,
+        дерево — поведінку від μ₀.
       </p>
     </div>
   );
+}
+
+function renderLivenessDetail(
+  status: ComparisonRow['status'],
+  ctx: ComparisonContext,
+): React.ReactNode {
+  if (status === 'tree-weaker') {
+    // Matrix says necessary conditions met, tree says actually not live.
+    // This is the most informative case — explain that matrix only checks necessary,
+    // not sufficient, conditions.
+    return (
+      <div className="space-y-1.5">
+        <p>
+          Матричний аналіз перевіряє лише <strong>необхідну</strong> умову живості: кожен
+          перехід має належати хоч до одного позитивного T-інваріанта (інакше він не може
+          спрацьовувати нескінченно довго у жодному виконанні). Тут ця умова виконана.
+        </p>
+        <p>
+          Проте ця умова <strong>не є достатньою</strong>: навіть якщо кожен перехід
+          структурно бере участь у циклі, з μ₀ може існувати шлях у тупикову вершину
+          (deadlock) або до маркування, у якому деякий перехід стає мертвим. Дерево
+          покриваючих маркувань це безпосередньо виявило.
+        </p>
+        <p>
+          Обидва результати правильні: матриця каже «структурно нічого не суперечить
+          живості», дерево каже «фактично є тупик». Матриця не може передбачити вибір у
+          конфлікті — це робить лише поведінковий аналіз.
+        </p>
+      </div>
+    );
+  }
+
+  if (status === 'consistent') {
+    // Both ✗ — matrix found uncovered transitions, tree found deadlocks/dead transitions.
+    const uncovered = ctx.uncoveredTransitions;
+    if (uncovered.length === 0) return undefined;
+    return (
+      <div className="space-y-1.5">
+        <p>
+          Обидва методи виявили відсутність живості, але з різних боків:
+        </p>
+        <p>
+          • <strong>Матриця</strong> показує, що структурно неможливо досягти повної
+          живості — переходи{' '}
+          <strong className="font-mono">{uncovered.join(', ')}</strong> не входять до
+          жодного позитивного T-інваріанта, отже не беруть участі в жодному циклі. Їхнє
+          спрацювання назавжди змінює стан системи.
+        </p>
+        <p>
+          • <strong>Дерево</strong> підтверджує це поведінково: у дереві покриваючих
+          маркувань є тупикові вершини або мертві переходи з μ₀. Необхідна умова не
+          виконана — необхідна умова відсутності тупиків теж.
+        </p>
+        <p>
+          Це узгоджені, але <em>взаємно підсилюючі</em> результати — вони пояснюють одне
+          й те саме явище з двох сторін.
+        </p>
+      </div>
+    );
+  }
+
+  return undefined;
 }
 
 function renderSequentialDetail(
