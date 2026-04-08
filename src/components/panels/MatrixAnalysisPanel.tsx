@@ -1095,13 +1095,20 @@ function MatrixContent({ computed }: { computed: ComputedAnalysis }) {
           </h3>
           <p className="text-[11px] text-muted-foreground mb-2">
             Зіставлення результатів матричного аналізу з аналізом дерева покриваючих маркувань
-            (Лабораторна 2). Матричний аналіз — структурний (не залежить від початкового
-            маркування), дерево — поведінковий (від μ₀).
+            (Лабораторна 2). Матричний аналіз — <strong>структурний</strong>: питає «чи існує
+            такий вектор/закон у мережі?», не залежить від початкового маркування. Дерево —{' '}
+            <strong>поведінковий</strong>: питає «що насправді відбувається з μ₀?». Тому
+            обидва методи можуть давати різні (але не суперечливі) результати — натисніть
+            «Чому такий результат?» під рядком, щоб побачити пояснення.
           </p>
           <ComparisonTable
             rows={buildComparisonRows({
               matrix: { conserves, bounded, hasCycle, sequential, invariant },
               tree: treeProperties,
+              matrices,
+              pInvariants,
+              tInvariants,
+              uncoveredTransitions,
             })}
           />
         </section>
@@ -1118,9 +1125,10 @@ interface ComparisonRow {
   treeOk: boolean;
   status: 'confirmed' | 'consistent' | 'matrix-weaker' | 'tree-weaker' | 'contradiction';
   note: string;
+  detail?: React.ReactNode;
 }
 
-function buildComparisonRows(args: {
+interface ComparisonContext {
   matrix: {
     conserves: boolean;
     bounded: boolean;
@@ -1129,94 +1137,257 @@ function buildComparisonRows(args: {
     invariant: boolean;
   };
   tree: NetProperties;
-}): ComparisonRow[] {
-  const { matrix, tree } = args;
+  matrices: NetMatrices;
+  pInvariants: number[][];
+  tInvariants: number[][];
+  uncoveredTransitions: string[];
+}
+
+function findFirstPositive(basis: number[][]): number[] | null {
+  return basis.find(isPositiveInv) ?? null;
+}
+
+function buildComparisonRows(ctx: ComparisonContext): ComparisonRow[] {
+  const { matrix, tree } = ctx;
   const rows: ComparisonRow[] = [];
 
   // 1) Збереження ресурсів
   // Tree: conservative (sum-in == sum-out per transition)  ⇒ all-ones P-invariant exists.
   // Matrix: positive P-inv exists (weaker condition).
-  rows.push(
-    classify(
-      'Збереження ресурсів',
-      matrix.conserves,
-      tree.conservative,
-      {
-        confirmed: 'Обидва методи підтверджують збереження ресурсів.',
-        consistent: 'Обидва методи не підтверджують збереження ресурсів.',
-        matrixStronger:
-          'Матриця знаходить позитивний P-інваріант, а в дереві деякі переходи змінюють сумарну кількість фішок — це нетривіальний закон збереження (вагова сума, не проста сума).',
-        treeStronger:
-          'СУПЕРЕЧНІСТЬ: дерево показує консервативність (сума зберігається), але матриця не знайшла жодного позитивного P-інваріанта. Перевірте побудову матриць або дерева покриваючих маркувань.',
-      },
-    ),
+  const conservesRow = classify(
+    'Збереження ресурсів',
+    matrix.conserves,
+    tree.conservative,
+    {
+      confirmed: 'Обидва методи підтверджують збереження ресурсів.',
+      consistent: 'Обидва методи не підтверджують збереження ресурсів.',
+      matrixStronger:
+        'Матриця знаходить позитивний P-інваріант, а в дереві деякі переходи змінюють сумарну кількість фішок — це нетривіальний закон збереження (вагова сума, не проста сума).',
+      treeStronger:
+        'СУПЕРЕЧНІСТЬ: дерево показує консервативність (сума зберігається), але матриця не знайшла жодного позитивного P-інваріанта. Перевірте побудову матриць або дерева покриваючих маркувань.',
+    },
   );
+  conservesRow.detail = renderConservesDetail(conservesRow.status, ctx);
+  rows.push(conservesRow);
 
   // 2) Обмеженість
   // Matrix bounded (complete positive P-inv) ⇒ tree must be bounded.
   // Tree bounded does NOT require matrix to find such an invariant.
-  rows.push(
-    classify(
-      'Обмеженість',
-      matrix.bounded,
-      tree.bounded,
-      {
-        confirmed: 'Обидва методи підтверджують обмеженість мережі.',
-        consistent:
-          'Обидва методи не гарантують обмеженість — у дереві знайдено ω, матриця не знайшла повного позитивного P-інваріанта.',
-        matrixStronger:
-          'СУПЕРЕЧНІСТЬ: матриця знайшла повний позитивний P-інваріант (необхідна обмеженість), але в дереві присутні ω-маркування (псевдомаркування). Перевірте коректність побудови.',
-        treeStronger:
-          'Дерево показує обмеженість, проте матричний аналіз не знайшов повного позитивного P-інваріанта. Це не суперечність — матричний критерій є достатнім, але не необхідним.',
-      },
-    ),
+  const boundedRow = classify(
+    'Обмеженість',
+    matrix.bounded,
+    tree.bounded,
+    {
+      confirmed: 'Обидва методи підтверджують обмеженість мережі.',
+      consistent:
+        'Обидва методи не гарантують обмеженість — у дереві знайдено ω, матриця не знайшла повного позитивного P-інваріанта.',
+      matrixStronger:
+        'СУПЕРЕЧНІСТЬ: матриця знайшла повний позитивний P-інваріант (необхідна обмеженість), але в дереві присутні ω-маркування (псевдомаркування). Перевірте коректність побудови.',
+      treeStronger:
+        'Дерево показує обмеженість, проте матричний аналіз не знайшов повного позитивного P-інваріанта. Це не суперечність — матричний критерій є достатнім, але не необхідним.',
+    },
   );
+  boundedRow.detail = renderBoundedDetail(boundedRow.status);
+  rows.push(boundedRow);
 
   // 3) Жвавість / Цикли
   // Tree: live (no dead transitions, no deadlocks).
   // Matrix: positive T-inv exists ⇒ потенційний цикл.
   // For bounded live nets a positive T-inv must exist. Matrix > tree means structural cycle
   // not reachable from μ₀.
-  rows.push(
-    classify(
-      'Цикли / живість',
-      matrix.hasCycle,
-      tree.live,
-      {
-        confirmed:
-          'Матриця знаходить позитивний T-інваріант, а дерево показує живість — циклічна поведінка підтверджена.',
-        consistent:
-          'Жоден з методів не виявив циклічної поведінки, що повертає мережу до початкового стану.',
-        matrixStronger:
-          'Матриця виявила структурний цикл (позитивний T-інваріант), але в дереві є тупикові вершини або мертві переходи. Цикл існує структурно, проте не досяжний з початкового маркування μ₀.',
-        treeStronger:
-          'СУПЕРЕЧНІСТЬ: дерево показує живість, а матриця не знайшла позитивного T-інваріанта. Для живої обмеженої мережі такий інваріант має існувати — перевірте побудову.',
-      },
-    ),
+  const cycleRow = classify(
+    'Цикли / живість',
+    matrix.hasCycle,
+    tree.live,
+    {
+      confirmed:
+        'Матриця знаходить позитивний T-інваріант, а дерево показує живість — циклічна поведінка підтверджена.',
+      consistent:
+        'Жоден з методів не виявив циклічної поведінки, що повертає мережу до початкового стану.',
+      matrixStronger:
+        'Матриця виявила структурний цикл (позитивний T-інваріант), але в дереві є тупикові вершини або мертві переходи. Цикл існує структурно, проте не досяжний з початкового маркування μ₀.',
+      treeStronger:
+        'СУПЕРЕЧНІСТЬ: дерево показує живість, а матриця не знайшла позитивного T-інваріанта. Для живої обмеженої мережі такий інваріант має існувати — перевірте побудову.',
+    },
   );
+  cycleRow.detail = renderCycleDetail(cycleRow.status, ctx);
+  rows.push(cycleRow);
 
   // 4) Послідовність / потенційна живість
   // Matrix sequential: every transition is in some positive T-invariant.
   // Tree potentiallyLive: every transition fires at least once in the tree.
-  rows.push(
-    classify(
-      'Послідовність переходів',
-      matrix.sequential,
-      tree.potentiallyLive,
-      {
-        confirmed:
-          'Кожен перехід структурно входить до циклу і фактично спрацьовує у дереві покриваючих маркувань — мережа потенційно жива.',
-        consistent:
-          'Існують переходи, які або не входять до жодного T-інваріанта, або не спрацьовують у дереві.',
-        matrixStronger:
-          'СУПЕРЕЧНІСТЬ: матриця стверджує, що кожен перехід належить до циклу, але деякі переходи — мертві у дереві. Це означає, що цикл не активується з μ₀.',
-        treeStronger:
-          'У дереві кожен перехід спрацьовує хоча б раз (мережа потенційно жива), проте матриця не для всіх знаходить T-інваріант. Деякі переходи беруть участь у виконанні, але не у структурних циклах.',
-      },
-    ),
+  const sequentialRow = classify(
+    'Послідовність переходів',
+    matrix.sequential,
+    tree.potentiallyLive,
+    {
+      confirmed:
+        'Кожен перехід структурно входить до циклу і фактично спрацьовує у дереві покриваючих маркувань — мережа потенційно жива.',
+      consistent:
+        'Існують переходи, які або не входять до жодного T-інваріанта, або не спрацьовують у дереві.',
+      matrixStronger:
+        'СУПЕРЕЧНІСТЬ: матриця стверджує, що кожен перехід належить до циклу, але деякі переходи — мертві у дереві. Це означає, що цикл не активується з μ₀.',
+      treeStronger:
+        'У дереві кожен перехід спрацьовує хоча б раз (мережа потенційно жива), проте матриця не для всіх знаходить T-інваріант. Деякі переходи беруть участь у виконанні, але не у структурних циклах.',
+    },
   );
+  sequentialRow.detail = renderSequentialDetail(sequentialRow.status, ctx);
+  rows.push(sequentialRow);
 
   return rows;
+}
+
+// ─── Step 10: row detail renderers ────────────────────────────────────────
+
+function renderConservesDetail(
+  status: ComparisonRow['status'],
+  ctx: ComparisonContext,
+): React.ReactNode {
+  if (status !== 'tree-weaker') return undefined;
+  const inv = findFirstPositive(ctx.pInvariants);
+  if (!inv) return undefined;
+  const { matrices } = ctx;
+  const placeLabels = matrices.placeIds.map(p => matrices.placeLabels[p]);
+
+  // Build "y[1]·m(P1) + y[2]·m(P2) + ..." formula (skipping zero weights).
+  const formulaParts: string[] = [];
+  for (let i = 0; i < inv.length; i++) {
+    if (inv[i] === 0) continue;
+    const w = inv[i];
+    const term = w === 1 ? `m(${placeLabels[i]})` : `${w}·m(${placeLabels[i]})`;
+    formulaParts.push(formulaParts.length === 0 ? term : `+ ${term}`);
+  }
+
+  // Initial verification: y · μ₀.
+  const initSum = inv.reduce((s, w, i) => s + w * matrices.initialMarking[i], 0);
+  const initParts = inv
+    .map((w, i) => `${w}·${matrices.initialMarking[i]}`)
+    .join(' + ');
+
+  return (
+    <div className="space-y-1.5">
+      <p>
+        Дерево перевіряє, чи зберігається <strong>проста</strong> сума фішок Σm(p) при
+        кожному спрацюванні переходу. Якщо хоч один перехід створює або поглинає фішки
+        (рядок матриці C має ненульову суму), простої консервативності немає — саме це
+        бачить дерево.
+      </p>
+      <p>
+        Натомість матриця знайшла нетривіальний <strong>ваговий</strong> закон збереження.
+        Базисний позитивний P-інваріант:
+      </p>
+      <div className="font-mono bg-muted/40 rounded px-2 py-1">
+        y = ({inv.join(', ')}) над позиціями ({placeLabels.join(', ')})
+      </div>
+      <p>Зберігається така зважена сума фішок:</p>
+      <div className="font-mono bg-muted/40 rounded px-2 py-1">
+        {formulaParts.length > 0 ? formulaParts.join(' ') : '0'} = const
+      </div>
+      <p>
+        Перевірка на початковій розмітці μ₀ = {fmtVec(matrices.initialMarking)}:{' '}
+        <span className="font-mono">{initParts} = {initSum}</span>. Це значення зберігається
+        при будь-якому спрацюванні переходу — отже, мережа консервативна <em>під цією вагою</em>,
+        хоча проста сума і не зберігається. Обидва результати правильні: тривіального
+        збереження немає, але нетривіальне є.
+      </p>
+    </div>
+  );
+}
+
+function renderCycleDetail(
+  status: ComparisonRow['status'],
+  ctx: ComparisonContext,
+): React.ReactNode {
+  if (status !== 'tree-weaker') return undefined;
+  const inv = findFirstPositive(ctx.tInvariants);
+  if (!inv) return undefined;
+  const { matrices } = ctx;
+  const transLabels = matrices.transitionIds.map(t => matrices.transitionLabels[t]);
+
+  // Build "T1 + T3 + T4" or "2·T1 + T3" interpretation of the firing vector.
+  const fireParts: string[] = [];
+  for (let j = 0; j < inv.length; j++) {
+    if (inv[j] === 0) continue;
+    fireParts.push(inv[j] === 1 ? transLabels[j] : `${inv[j]}·${transLabels[j]}`);
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <p>Матриця знайшла позитивний T-інваріант:</p>
+      <div className="font-mono bg-muted/40 rounded px-2 py-1">
+        x = ({inv.join(', ')}) над переходами ({transLabels.join(', ')})
+      </div>
+      <p>
+        Це означає, що послідовність спрацювань{' '}
+        <span className="font-mono">{fireParts.join(' + ')}</span> у будь-якому допустимому
+        порядку повертає мережу до тієї ж розмітки: μ + C·x = μ. Структурно{' '}
+        <strong>цикл існує</strong>.
+      </p>
+      <p>
+        Проте дерево покриваючих маркувань містить тупикові вершини або мертві переходи.
+        Це означає, що з μ₀ існує альтернативний вибір — інший спрацьовний перехід — який
+        виводить мережу <em>з</em> цього циклу у тупикову гілку. Цикл є{' '}
+        <strong>структурно</strong>, але не <strong>невідворотно</strong> досяжним: його
+        можна обійти, обравши «не той» перехід у конфлікті.
+      </p>
+      <p>
+        Обидва результати правильні: цикл закладений у структурі мережі, але живість потребує,
+        щоб <em>усі</em> можливі шляхи з μ₀ залишали його активним.
+      </p>
+    </div>
+  );
+}
+
+function renderSequentialDetail(
+  status: ComparisonRow['status'],
+  ctx: ComparisonContext,
+): React.ReactNode {
+  if (status !== 'matrix-weaker') return undefined;
+  const uncovered = ctx.uncoveredTransitions;
+  if (uncovered.length === 0) return undefined;
+
+  return (
+    <div className="space-y-1.5">
+      <p>
+        Дерево показує, що мережа <strong>потенційно жива</strong> — кожен перехід спрацьовує
+        хоча б раз у дереві покриваючих маркувань.
+      </p>
+      <p>
+        Проте матриця не знайшла жодного позитивного T-інваріанта, до якого входили б
+        переходи: <strong className="font-mono">{uncovered.join(', ')}</strong>{' '}
+        (їхні компоненти у всіх T-інваріантах дорівнюють 0).
+      </p>
+      <p>
+        Це означає таке: ці переходи <em>можуть</em> спрацювати, але їхнє спрацювання{' '}
+        <strong>не повертає</strong> мережу до вихідної розмітки — вони не входять до жодного
+        структурного циклу. Така подія відбувається <em>один раз</em> уздовж шляху і назавжди
+        змінює стан системи (наприклад, веде у тупик або у незворотну гілку).
+      </p>
+      <p>
+        Обидва результати правильні: «потенційна живість» дерева — слабка властивість (досить
+        одного спрацювання), а «послідовність» матриці вимагає циклічної участі в інваріанті.
+      </p>
+    </div>
+  );
+}
+
+function renderBoundedDetail(status: ComparisonRow['status']): React.ReactNode {
+  if (status !== 'matrix-weaker') return undefined;
+  return (
+    <div className="space-y-1.5">
+      <p>
+        Дерево показує, що всі позиції обмежені (немає ω-маркувань). Поведінково мережа
+        не може породити необмежене зростання фішок з μ₀.
+      </p>
+      <p>
+        Проте матриця не знайшла <em>повного</em> позитивного P-інваріанта — такого, що
+        покриває кожну позицію ненульовою вагою. Матричний критерій обмеженості є{' '}
+        <strong>достатнім, але не необхідним</strong>: обмеженість може випливати з
+        топології мережі та конкретного μ₀, не маючи формального вираження через ваговий
+        інваріант. Це не суперечність, лише різна сила методів.
+      </p>
+    </div>
+  );
 }
 
 function classify(
@@ -1259,36 +1430,48 @@ function classify(
 }
 
 function ComparisonTable({ rows }: { rows: ComparisonRow[] }) {
+  const yesNoCell = (ok: boolean) => (
+    <span
+      className={`inline-block text-[10px] font-semibold rounded px-1.5 py-0.5 border ${
+        ok
+          ? 'text-green-700 bg-green-50 border-green-200'
+          : 'text-slate-600 bg-slate-50 border-slate-200'
+      }`}
+    >
+      {ok ? 'так' : 'ні'}
+    </span>
+  );
+
   const statusBadge = (s: ComparisonRow['status']) => {
     switch (s) {
       case 'confirmed':
         return (
           <span className="text-[10px] font-semibold text-green-700 bg-green-50 border border-green-200 rounded px-1.5 py-0.5">
-            підтверджено
+            обидва підтверджують
           </span>
         );
       case 'consistent':
         return (
           <span className="text-[10px] font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5">
-            узгоджено
+            обидва не виявляють
           </span>
         );
       case 'matrix-weaker':
         return (
           <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
-            матриця менш точна
+            виявлено лише деревом
           </span>
         );
       case 'tree-weaker':
         return (
           <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
-            дерево менш точне
+            виявлено лише матрицями
           </span>
         );
       case 'contradiction':
         return (
           <span className="text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200 rounded px-1.5 py-0.5">
-            суперечність
+            конфлікт результатів
           </span>
         );
     }
@@ -1304,13 +1487,13 @@ function ComparisonTable({ rows }: { rows: ComparisonRow[] }) {
                 Властивість
               </th>
               <th className="border border-border px-1.5 py-1 bg-muted/60 text-muted-foreground font-semibold text-center">
-                Матриці
+                За матрицями
               </th>
               <th className="border border-border px-1.5 py-1 bg-muted/60 text-muted-foreground font-semibold text-center">
-                Дерево
+                За деревом
               </th>
               <th className="border border-border px-1.5 py-1 bg-muted/60 text-muted-foreground font-semibold text-center">
-                Статус
+                Підсумок
               </th>
             </tr>
           </thead>
@@ -1319,14 +1502,10 @@ function ComparisonTable({ rows }: { rows: ComparisonRow[] }) {
               <tr key={i}>
                 <td className="border border-border px-1.5 py-1 font-medium">{r.label}</td>
                 <td className="border border-border px-1.5 py-1 text-center">
-                  <span className={r.matrixOk ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}>
-                    {r.matrixOk ? '✓' : '✗'}
-                  </span>
+                  {yesNoCell(r.matrixOk)}
                 </td>
                 <td className="border border-border px-1.5 py-1 text-center">
-                  <span className={r.treeOk ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}>
-                    {r.treeOk ? '✓' : '✗'}
-                  </span>
+                  {yesNoCell(r.treeOk)}
                 </td>
                 <td className="border border-border px-1.5 py-1 text-center">{statusBadge(r.status)}</td>
               </tr>
@@ -1335,13 +1514,22 @@ function ComparisonTable({ rows }: { rows: ComparisonRow[] }) {
         </table>
       </div>
 
-      <ul className="space-y-1 text-[11px] leading-snug">
+      <ul className="space-y-2 text-[11px] leading-snug">
         {rows.map((r, i) => (
-          <li key={i} className="flex gap-1.5">
-            <span className="text-muted-foreground shrink-0">·</span>
-            <span>
-              <strong>{r.label}:</strong> {r.note}
-            </span>
+          <li key={i} className="space-y-1">
+            <div className="flex gap-1.5">
+              <span className="text-muted-foreground shrink-0">·</span>
+              <span>
+                <strong>{r.label}:</strong> {r.note}
+              </span>
+            </div>
+            {r.detail && (
+              <div className="ml-3">
+                <Details title="Чому такий результат?">
+                  <div className="text-[11px] leading-relaxed space-y-1.5">{r.detail}</div>
+                </Details>
+              </div>
+            )}
           </li>
         ))}
       </ul>
