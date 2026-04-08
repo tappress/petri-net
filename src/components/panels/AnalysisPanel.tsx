@@ -136,7 +136,7 @@ function TreeGraph({ tree }: { tree: CoverabilityTree }) {
           setView({ x: (cw - totalW * scale) / 2, y: 8, scale });
         }}
       >
-        fit
+        вписати
       </button>
 
       <svg
@@ -276,12 +276,12 @@ function ReachabilityChecker({ tree }: { tree: CoverabilityTree }) {
     if (reachable) {
       setResult({
         reachable: true,
-        detail: `Marking ${markingStr} IS reachable — a covering node was found in the tree.`,
+        detail: `Маркування ${markingStr} досяжне — у дереві знайдено покриваючу вершину.`,
       });
     } else {
       setResult({
         reachable: false,
-        detail: `Marking ${markingStr} is NOT reachable — no covering node found in the tree.`,
+        detail: `Маркування ${markingStr} недосяжне — у дереві не знайдено покриваючої вершини.`,
       });
     }
   };
@@ -289,7 +289,8 @@ function ReachabilityChecker({ tree }: { tree: CoverabilityTree }) {
   return (
     <div className="space-y-2">
       <p className="text-[11px] text-muted-foreground">
-        Enter a target marking to check reachability via the coverability tree.
+        Введіть цільове маркування для перевірки досяжності за допомогою дерева
+        покриваючих маркувань.
       </p>
       <div className="text-[10px] text-muted-foreground font-mono mb-1">
         ({tree.placeIds.map(p => tree.placeLabels[p]).join(', ')})
@@ -311,7 +312,7 @@ function ReachabilityChecker({ tree }: { tree: CoverabilityTree }) {
         ))}
       </div>
       <Button size="sm" className="h-7 text-xs w-full mt-1" onClick={check}>
-        Check Reachability
+        Перевірити досяжність
       </Button>
       {result && (
         <div className={`text-xs rounded px-2 py-1.5 mt-1 leading-snug ${
@@ -337,11 +338,11 @@ export default function AnalysisPanel() {
     <div className="flex flex-col bg-card border-l border-border w-1/2 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2.5 border-b border-border shrink-0">
-        <span className="text-sm font-semibold">Net Analysis</span>
+        <span className="text-sm font-semibold">Аналіз мережі</span>
         <button
           onClick={hide}
           className="text-muted-foreground hover:text-foreground text-lg leading-none"
-          aria-label="Close"
+          aria-label="Закрити"
         >
           ✕
         </button>
@@ -349,111 +350,112 @@ export default function AnalysisPanel() {
 
       {!tree || !properties ? (
         <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground p-4 text-center">
-          Click <strong className="mx-1">Analyze</strong> in the toolbar to build the coverability tree.
+          Натисніть <strong className="mx-1">◈ Analyze</strong> на панелі інструментів, щоб
+          побудувати дерево покриваючих маркувань.
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto min-h-0">
           <div className="p-3 space-y-4">
 
-            {/* ── Task 1: Coverability tree ──────────────────────── */}
+            {/* ── Задача 1: дерево покриваючих маркувань ─────────── */}
             <section>
               <div className="flex items-center justify-between mb-1.5">
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Task 1 — Coverability Tree
+                  Задача 1 — Дерево покриваючих маркувань
                 </h3>
                 <span className="text-[10px] text-muted-foreground">
-                  {Object.keys(tree.nodes).length} nodes
+                  {Object.keys(tree.nodes).length} вершин
                 </span>
               </div>
               <div className="text-[10px] text-muted-foreground font-mono mb-1.5">
                 ({tree.placeIds.map(p => tree.placeLabels[p]).join(', ')})
                 {' · '}
-                <span className="text-red-500 font-bold">Т</span>=terminal{' '}
-                <span className="text-blue-500 font-bold">Д</span>=duplicate
-                {' · scroll/drag/pinch'}
+                <span className="text-red-500 font-bold">Т</span>=тупикова{' '}
+                <span className="text-blue-500 font-bold">Д</span>=дублікат
+                {' · прокрутка / перетягування / масштаб'}
               </div>
               <TreeGraph tree={tree} />
             </section>
 
             <Separator />
 
-            {/* ── Task 2: Properties ─────────────────────────────── */}
+            {/* ── Задача 2: властивості ──────────────────────────── */}
             <section>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                Task 2 — Properties
+                Задача 2 — Властивості
               </h3>
               <div className="divide-y divide-border">
                 <PropRow
-                  label="Bounded"
+                  label="Обмежена"
                   ok={properties.bounded}
                   detail={
                     properties.bounded
-                      ? 'No ω symbols in the tree — all places have finite bounds.'
-                      : 'Tree contains ω symbols — the net is unbounded.'
+                      ? 'У дереві немає символів ω — усі позиції мають скінченні межі.'
+                      : 'Дерево містить символи ω — мережа необмежена.'
                   }
                 />
                 <PropRow
-                  label="Safe (1-bounded)"
+                  label="Безпечна (1-обмежена)"
                   ok={properties.safe}
-                  detail={properties.safe ? 'Every place holds at most 1 token.' : undefined}
+                  detail={properties.safe ? 'Кожна позиція містить не більше 1 фішки.' : undefined}
                 />
                 <PropRow
-                  label="Conservative"
+                  label="Консервативна"
                   ok={properties.conservative}
                   detail={
                     properties.conservative
-                      ? 'Every transition preserves the total token count.'
-                      : 'Some transition changes the total token count.'
+                      ? 'Кожен перехід зберігає сумарну кількість фішок.'
+                      : 'Деякий перехід змінює сумарну кількість фішок.'
                   }
                 />
                 <PropRow
-                  label="Potentially live"
+                  label="Потенційно жива"
                   ok={properties.potentiallyLive}
                   detail={
                     properties.potentiallyLive
-                      ? 'Every transition fires at least once in the tree.'
-                      : `Dead transitions: ${properties.deadTransitions.join(', ') || '—'}`
+                      ? 'Кожен перехід спрацьовує принаймні раз у дереві.'
+                      : `Мертві переходи: ${properties.deadTransitions.join(', ') || '—'}`
                   }
                 />
                 <PropRow
-                  label="Live"
+                  label="Жива"
                   ok={properties.live}
                   detail={
                     properties.live
-                      ? 'Potentially live and no deadlock nodes.'
-                      : 'Tree contains terminal (deadlock) nodes.'
+                      ? 'Потенційно жива і немає тупикових вершин.'
+                      : 'Дерево містить термінальні (тупикові) вершини.'
                   }
                 />
                 <PropRow
-                  label="Deadlock-free"
+                  label="Без тупиків"
                   ok={properties.deadlockFree}
                   detail={
                     properties.deadlockFree
-                      ? 'No terminal nodes in the tree.'
-                      : 'Tree has terminal nodes (deadlocks exist).'
+                      ? 'У дереві немає термінальних вершин.'
+                      : 'Дерево містить термінальні вершини (існують тупики).'
                   }
                 />
                 <PropRow
-                  label="Stable"
+                  label="Стійка"
                   ok={properties.stable}
                   detail={
                     properties.stable
-                      ? 'No two simultaneously-enabled transitions disable each other.'
+                      ? 'Жодні два одночасно збуджені переходи не вимикають один одного.'
                       : properties.unstableExample
-                        ? `Firing ${properties.unstableExample.t1Label} in ${
+                        ? `Спрацювання ${properties.unstableExample.t1Label} у маркуванні ${
                             fmtOmegaMarking(
                               tree.nodes[properties.unstableExample.markingNodeId].marking,
                               tree.placeIds,
                             )
-                          } disables ${properties.unstableExample.t2Label}.`
-                        : 'Some firing disables another simultaneously-enabled transition.'
+                          } унеможливлює запуск збудженого переходу ${properties.unstableExample.t2Label}.`
+                        : 'Деяке спрацювання вимикає інший одночасно збуджений перехід.'
                   }
                 />
               </div>
 
-              {/* Per-place boundedness */}
+              {/* Межі позицій */}
               <div className="mt-2">
-                <p className="text-[11px] text-muted-foreground mb-1">Place bounds:</p>
+                <p className="text-[11px] text-muted-foreground mb-1">Межі позицій:</p>
                 <div className="flex flex-wrap gap-1">
                   {tree.placeIds.map(p => (
                     <Badge key={p} variant="outline" className="text-[10px] font-mono">
@@ -467,10 +469,10 @@ export default function AnalysisPanel() {
 
             <Separator />
 
-            {/* ── Task 3: Reachability ───────────────────────────── */}
+            {/* ── Задача 3: досяжність ───────────────────────────── */}
             <section>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                Task 3 — Reachability Check
+                Задача 3 — Перевірка досяжності
               </h3>
               <ReachabilityChecker tree={tree} />
             </section>

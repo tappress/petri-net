@@ -4,7 +4,14 @@ import { useSimulation } from '@/hooks/useSimulation';
 import { useSimulationStore } from '@/store/simulationStore';
 import { useProjectStore, selectActiveSheet } from '@/store/projectStore';
 import { useAnalysisStore } from '@/store/analysisStore';
+import { useMatrixAnalysisStore } from '@/store/matrixAnalysisStore';
 import { buildCoverabilityTree, analyzeNet } from '@/engine/coverability';
+import {
+  buildMatrices,
+  computeFiringPath,
+  tInvariantsSteps,
+  solvePInvariantsSteps,
+} from '@/engine/matrix';
 import type { ToolMode } from '@/types/petri';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -26,10 +33,18 @@ export default function Toolbar() {
   const { deleteNode, deleteArc } = useProjectStore();
   const sheet = useProjectStore(selectActiveSheet);
   const { isVisible: analysisVisible, show: showAnalysis, hide: hideAnalysis, setResults, setComputing } = useAnalysisStore();
+  const {
+    isVisible: matrixVisible,
+    show: showMatrix,
+    hide: hideMatrix,
+    setResult: setMatrixResult,
+    setComputing: setMatrixComputing,
+  } = useMatrixAnalysisStore();
 
   const handleAnalyze = React.useCallback(() => {
     if (!sheet) return;
     if (analysisVisible) { hideAnalysis(); return; }
+    if (matrixVisible) hideMatrix();
     setComputing(true);
     showAnalysis();
     // Run in a microtask so the panel opens before computing
@@ -38,7 +53,24 @@ export default function Toolbar() {
       const props = analyzeNet(tree, sheet.net);
       setResults(tree, props);
     }, 0);
-  }, [sheet, analysisVisible, showAnalysis, hideAnalysis, setResults, setComputing]);
+  }, [sheet, analysisVisible, matrixVisible, showAnalysis, hideAnalysis, hideMatrix, setResults, setComputing]);
+
+  const handleMatrixAnalyze = React.useCallback(() => {
+    if (!sheet) return;
+    if (matrixVisible) { hideMatrix(); return; }
+    if (analysisVisible) hideAnalysis();
+    setMatrixComputing(true);
+    showMatrix();
+    setTimeout(() => {
+      const matrices = buildMatrices(sheet.net);
+      const tree = buildCoverabilityTree(sheet.net, sheet.net.initialMarking);
+      const treeProperties = analyzeNet(tree, sheet.net);
+      const firingPath = computeFiringPath(tree, matrices, 5);
+      const tSteps = tInvariantsSteps(matrices.C, matrices.transitionIds.length);
+      const pSteps = solvePInvariantsSteps(matrices.C, matrices.placeIds.length);
+      setMatrixResult({ matrices, tree, treeProperties, firingPath, tSteps, pSteps });
+    }, 0);
+  }, [sheet, matrixVisible, analysisVisible, showMatrix, hideMatrix, hideAnalysis, setMatrixResult, setMatrixComputing]);
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -123,6 +155,21 @@ export default function Toolbar() {
               </Button>
             </TooltipTrigger>
             <TooltipContent>Build coverability tree &amp; analyze properties</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger render={<span />}>
+              <Button
+                variant={matrixVisible ? 'default' : 'outline'}
+                size="sm"
+                className="h-8 px-2.5 text-xs"
+                onClick={handleMatrixAnalyze}
+                disabled={!sheet || Object.keys(sheet.net.places).length === 0}
+              >
+                ⊞ Matrices
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Матричний аналіз: F, H, C, T- та P-інваріанти</TooltipContent>
           </Tooltip>
 
           <div className="ml-auto">

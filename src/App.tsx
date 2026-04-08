@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import Sidebar from '@/components/layout/Sidebar';
 import { useAnalysisStore } from '@/store/analysisStore';
+import { useMatrixAnalysisStore } from '@/store/matrixAnalysisStore';
 import Toolbar from '@/components/layout/Toolbar';
 import RightPanel from '@/components/layout/RightPanel';
 import PetriCanvas from '@/components/canvas/PetriCanvas';
 import AnalysisPanel from '@/components/panels/AnalysisPanel';
+import MatrixAnalysisPanel from '@/components/panels/MatrixAnalysisPanel';
 import { useProjectStore } from '@/store/projectStore';
 import { loadAllProjects } from '@/persistence/storage';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -147,6 +149,8 @@ Use short random alphanumeric strings (nanoid style), e.g. \`"xYq3oqu5Zx"\`. All
 export default function App() {
   const { loadProjects, createProject } = useProjectStore();
   const analysisVisible = useAnalysisStore(s => s.isVisible);
+  const matrixVisible = useMatrixAnalysisStore(s => s.isVisible);
+  const sidePanelVisible = analysisVisible || matrixVisible;
   const [docsCopied, setDocsCopied] = useState(false);
 
   useEffect(() => {
@@ -197,19 +201,20 @@ export default function App() {
 
         {/* Main layout */}
         <div className="flex flex-1 overflow-hidden">
-          {!analysisVisible && <Sidebar />}
+          {!sidePanelVisible && <Sidebar />}
 
           <div className="flex flex-col flex-1 overflow-hidden min-w-0">
             <Toolbar />
             <div className="flex-1 overflow-hidden flex bg-slate-50 min-h-0">
-              <div className={analysisVisible ? 'w-1/2 overflow-hidden' : 'flex-1 overflow-hidden'}>
+              <div className={sidePanelVisible ? 'w-1/2 overflow-hidden' : 'flex-1 overflow-hidden'}>
                 <PetriCanvas />
               </div>
               <AnalysisPanel />
+              <MatrixAnalysisPanel />
             </div>
           </div>
 
-          {!analysisVisible && <RightPanel />}
+          {!sidePanelVisible && <RightPanel />}
         </div>
       </div>
     </TooltipProvider>
