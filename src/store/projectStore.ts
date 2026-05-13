@@ -45,6 +45,7 @@ interface ProjectState {
   createSheet: (name: string) => void;
   deleteSheet: (sheetId: string) => void;
   renameSheet: (sheetId: string, name: string) => void;
+  setSheetDescription: (sheetId: string, description: string) => void;
   setActiveSheet: (sheetId: string) => void;
 
   // Net mutations
@@ -149,6 +150,17 @@ export const useProjectStore = create<ProjectState>()(
           const proj = state.projects[state.activeProjectId ?? ''];
           if (!proj || !proj.sheets[sheetId]) return;
           proj.sheets[sheetId].name = name;
+          proj.updatedAt = Date.now();
+        });
+        persist(get());
+      },
+
+      setSheetDescription: (sheetId, description) => {
+        set(state => {
+          const proj = state.projects[state.activeProjectId ?? ''];
+          if (!proj || !proj.sheets[sheetId]) return;
+          proj.sheets[sheetId].description = description || undefined;
+          proj.sheets[sheetId].updatedAt = Date.now();
           proj.updatedAt = Date.now();
         });
         persist(get());

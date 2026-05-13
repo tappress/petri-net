@@ -1,6 +1,14 @@
 export type NodeId = string;
 export type ArcId = string;
 
+// Semantic role of a place when modeling a real system (purely informational —
+// does not affect the firing rule). Used by Lab 4+ to disambiguate states from
+// resources, retry-counters, etc.
+export type PlaceKind = 'state' | 'resource' | 'buffer' | 'counter' | 'condition';
+
+// Semantic role of a transition. Same intent as PlaceKind — purely informational.
+export type TransitionKind = 'event' | 'action' | 'decision' | 'timeout';
+
 export interface Place {
   id: NodeId;
   label: string;
@@ -8,6 +16,8 @@ export interface Place {
   y: number;
   tokens: number;
   capacity: number | null;
+  kind?: PlaceKind;
+  description?: string;
 }
 
 export interface Transition {
@@ -17,6 +27,9 @@ export interface Transition {
   y: number;
   priority: number;
   rotation: number; // degrees
+  kind?: TransitionKind;
+  description?: string;
+  guard?: string; // human-readable guard annotation (e.g. "if priority == high")
 }
 
 export type ArcType = 'normal' | 'inhibitor' | 'reset' | 'read';
@@ -46,6 +59,7 @@ export interface Sheet {
   id: string;
   name: string;
   net: PetriNet;
+  description?: string; // domain-level description of the modeled system
   createdAt: number;
   updatedAt: number;
 }
